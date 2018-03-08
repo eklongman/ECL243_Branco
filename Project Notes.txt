@@ -1,8 +1,23 @@
 Project Notes: 
 
+##################################################################################################################
+# Homebrew - program that install programs that Apple has troubles with
+https://brew.sh/
+
+e.g. brew install wget
+
+##################################################################################################################
+# Installing programs 
+- Making it globally executable (it adds this path to all of the paths you can use to execute a program)
+cp /Users/emilylongman/Documents/Software/plink_mac/plink /usr/local/bin/.
+
+- If dont make it globally executable, then you must have that program in the folder where you are doing the analyses
+
+##################################################################################################################
+
 # Make separate vcf files for each population 
 
-cut -f 						cuts out selected portion of file
+cut -f : cuts out selected portion of file
 
 # First 9 columns are fixed fields
 cut -f 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18 All_Suillus_OUTGROUP.vcf > CAc.vcf
@@ -10,33 +25,106 @@ cut -f 1,2,3,4,5,6,7,8,9,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34 All_Sui
 cut -f 1,2,3,4,5,6,7,8,9,47,48,49,50,51 All_Suillus_OUTGROUP.vcf > CO.vcf
 cut -f 1,2,3,4,5,6,7,8,9,52,53,54,55,56,57 All_Suillus_OUTGROUP.vcf > MN.vcf
 
-#############################################################################################################
+# Make separate vcf file w/o Suillus luteus 
+
+cut -f 1-64 All_Suillus_OUTGROUP.vcf > Sb.vcf
+
+
+###################################################################################################################
 
 ## VCFTools synopsis:
 vcftools [ --vcf FILE | --gzvcf FILE | --bcf FILE] [ --out OUTPUT PREFIX ] [ FILTERING OPTIONS ] [ OUTPUT OPTIONS ]
 
-#############################################################################################################
+###################################################################################################################
 
 # Calculate nucleotide diversity 
-vcftools --vcf CAc.vcf --site-pi --out CAc_pi
+vcftools --vcf CAc.vcf --site-pi --out CAc
+vcftools --vcf CAm.vcf --site-pi --out CAm
+vcftools --vcf CO.vcf --site-pi --out CO
+vcftools --vcf MN.vcf --site-pi --out MN
 
-
-# Calculate Watterson theta 
-....?
 
 # Calculate heterozygosity 
-vcftools --vcf CAc.vcf --het --out CAc_het
+vcftools --vcf CAc.vcf --het --out CAc
+vcftools --vcf CAm.vcf --het --out CAm
+vcftools --vcf CO.vcf --het --out CO
+vcftools --vcf MN.vcf --het --out MN
 
-#############################################################################################################
+# Tajima's D
+
+vcftools --vcf CAc.vcf --TajimaD 1000000 --out CAc
+vcftools --vcf CAm.vcf --TajimaD 1000000 --out CAm
+vcftools --vcf CO.vcf --TajimaD 1000000 --out CO
+vcftools --vcf MN.vcf --TajimaD 1000000 --out MN
+
+
+## Open files in R then calculate average
+##################################################################################################################
  
-## Linkage disequilibrium 
+# Linkage Disequilibrium 
 
 #Calculate correlation coefficient r^2 - w/ a max of 5000 bp between SNPs
-vcftools --vcf CAc.vcf --geno-r2 --ld-window-bp 5000 --out CAc_r2
+vcftools --vcf CAc.vcf --geno-r2 --ld-window-bp 5000 --out CAc.r2
+
+vcftools --vcf MN.vcf --geno-r2 --ld-window-bp 50 --out MN.r2
+vcftools --vcf CO.vcf --geno-r2 --ld-window-bp 50 --out CO.r2
+vcftools --vcf CAc.vcf --geno-r2 --ld-window-bp 50 --out CAc.r2
+vcftools --vcf CAm.vcf --geno-r2 --ld-window-bp 50 --out CAm.r2
 
 
-#############################################################################################################
+# Run it on farm bc it can take a super long time
+
+## Make LD decay graph
+##################################################################################################################
 
 ## Calculate Fst across populations
 
-vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop pop1.txt?? --weir-fst-pop pop2.txt? --out Fstvalues 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAc.txt --weir-fst-pop CAm.txt --out Fst.CAc.CAm 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAc.txt --weir-fst-pop CO.txt --out Fst.CAc.CO 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAc.txt --weir-fst-pop MN.txt --out Fst.CAc.MN 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAm.txt --weir-fst-pop CO.txt --out Fst.CAm.CO 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAm.txt --weir-fst-pop MN.txt --out Fst.CAm.MN 
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CO.txt --weir-fst-pop MN.txt --out Fst.CO.MN
+
+
+vcftools --vcf All_Suillus_OUTGROUP.vcf --weir-fst-pop CAc.txt --weir-fst-pop CAm.txt --weir-fst-pop CO.txt --weir-fst-pop MN.txt --out Fst 
+#Can't seem to do more than 2 pops at the same time
+
+##################################################################################################################
+# Switch vcf to plink format
+
+vcftools --vcf Sb.vcf --out Sb --plink
+
+##################################################################################################################
+# Switch .ped to .bed file using plink
+
+plink --noweb --file Sb --make-bed --out Sb
+
+##################################################################################################################
+# ADMIXTURE
+https://www.genetics.ucla.edu/software/admixture/admixture-manual.pdf
+
+# E.g. Calc admixture for K=7
+
+	admixture Sb.bed 7
+
+
+# Deciding the best K value -> ADMIXTURE's cross-validation procedure 
+(a good K will have a low cv error compared to other K values) 
+(for the code below, enter the first line first; the terminal will prompt you with > then enter the second line)
+
+for K in 1 2 3 4 5 6 7; \ 
+	do admixture --cv Sb.bed $K | tee log${K}.out; done
+
+(this code will give the cross validation values for each K value)
+grep -h CV log*s.out
+
+
+##################################################################################################################
+# PCA 
+
+Plink
+http://www.bioinf.wits.ac.za/courses/gwas/cupop.pdf
+https://www.cog-genomics.org/plink/1.9/strat
+
+plink --bfile Sb --pca --out PCA
